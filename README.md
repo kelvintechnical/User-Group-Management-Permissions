@@ -5,7 +5,7 @@
 ![RHCSA](https://img.shields.io/badge/RHCSA-EX200-EE0000?style=flat&logo=redhat&logoColor=white)
 ![Topic](https://img.shields.io/badge/Topic-User_and_Group_Management-blue)
 
----
+---   
 
 ## 📋 Scenario
 
