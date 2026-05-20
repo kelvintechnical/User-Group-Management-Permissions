@@ -191,9 +191,14 @@ ls -ld /data/engineers
 ```
 
 **Expected output:**
-```
 drwxr-xr-x. 2 tom engineers 6 May 20 11:14 /data/engineers
-```
+
+Notice what changed from Step 1:
+
+| Before | After |
+|--------|-------|
+| `root root` | `tom engineers` |
+| `rwxr-xr-x` | unchanged — permissions come next |
 
 ---
 
@@ -205,13 +210,13 @@ sudo chmod 070 /data/engineers
 
 **Breaking down `070`:**
 
-| Position | Who | Value | Permissions |
-|----------|-----|-------|-------------|
-| `0` | Owner (tom) | 0 | `---` no access |
-| `7` | Group (engineers) | 4+2+1 | `rwx` full access |
-| `0` | Others | 0 | `---` no access |
+| Position | Who | Value | Permissions | Math |
+|----------|-----|-------|-------------|------|
+| `0` | Owner (tom) | 0 | `---` no access | 0 |
+| `7` | Group (engineers) | 7 | `rwx` full access | 4+2+1 |
+| `0` | Others | 0 | `---` no access | 0 |
 
-> `tom` gets `0` (no rwx) but still owns the directory — ownership is separate from permissions. The owner always retains the right to `chmod`, even with `---`.
+> **The key trick:** `tom` gets `0` (no rwx) but still owns the directory. Ownership and permissions are separate — the owner always retains the right to `chmod`, even when their own permissions say `---`.
 
 **Verify:**
 ```bash
@@ -219,9 +224,7 @@ ls -ld /data/engineers
 ```
 
 **Expected output:**
-```
 d---rwx---. 2 tom engineers 6 May 20 11:14 /data/engineers
-```
 
 ---
 
@@ -235,16 +238,18 @@ getent group engineers
 
 **Reading the final `ls -ld` output:**
 
-| Part | Meaning |
-|------|---------|
-| `d` | It's a directory |
-| `---` | Owner (tom) has no rwx |
-| `rwx` | Group (engineers) has full access |
-| `---` | Others have no access |
-| `tom` | Owning user |
-| `engineers` | Owning group |
+| Part | Requirement met |
+|------|----------------|
+| `d---` | Owner (tom) has no rwx — but can still `chmod` ✓ |
+| `rwx` | Group (engineers) has full access ✓ |
+| `---` | Others have no access ✓ |
+| `tom` | Tom is the owning user ✓ |
+| `engineers` | Engineers is the owning group ✓ |
 
----
+All 3 requirements satisfied:
+- Requirement 1 — `tom` = `---` ✓
+- Requirement 2 — `engineers` = `rwx` ✓
+- Requirement 3 — others = `---` ✓
 
 ## 🧠 Key Concepts
 
