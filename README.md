@@ -5,7 +5,7 @@
 ![RHCSA](https://img.shields.io/badge/RHCSA-EX200-EE0000?style=flat&logo=redhat&logoColor=white)
 ![Topic](https://img.shields.io/badge/Topic-User_and_Group_Management-blue)
 
----   
+---
 
 ## 📋 Scenario
 
@@ -63,11 +63,11 @@ r w x   r w x   r w x
 4 2 1   4 2 1   4 2 1
 ```
 
-- **Owner** — the user who owns the file (controls with `chown`)
-- **Group** — the group assigned to the file (controls with `chown :group`)
-- **Others** — everyone else
+- **Owner** — the user who owns the file (set with `chown`)
+- **Group** — the group assigned to the file (set with `chown :group`)
+- **Others** — everyone else on the system
 
-**Key insight for this lab:** Even if `tom` is the owner, you can set owner permissions to `---` (000). Tom loses read/write/execute but retains the ability to `chmod` the directory — because **only the owner can change permissions**, regardless of what those permissions are.
+**Key insight for this lab:** Even if `tom` is the owner, you can set owner permissions to `---` (0). Tom loses read/write/execute but retains the ability to `chmod` the directory — because **only the owner can change permissions**, regardless of what those permissions currently are.
 
 ---
 
@@ -77,7 +77,19 @@ r w x   r w x   r w x
 sudo mkdir -p /data/engineers
 ```
 
-> `-p` creates parent directories as needed — if `/data` doesn't exist, it creates both `/data` and `/data/engineers` in one command.
+`/data` doesn't exist on your system yet — `-p` handles that by creating both `/data` and `/data/engineers` in one shot. Without `-p`, the command fails if the parent directory is missing.
+
+**Verify it was created:**
+```bash
+ls -ld /data/engineers
+```
+
+**Expected output:**
+```
+drwxr-xr-x. 2 root root 6 May 20 11:14 /data/engineers
+```
+
+Right now `root` owns everything. By the end of the lab it will show `tom engineers` with `---rwx---` permissions.
 
 ---
 
@@ -88,7 +100,80 @@ sudo groupadd engineers
 sudo useradd tom
 ```
 
-> `useradd` creates the user with a home directory at `/home/tom` and a default private group also called `tom`. The `engineers` group is separate — we assign it via `chown`.
+`groupadd` adds `engineers` to `/etc/group`. `useradd` creates `tom` with a home directory at `/home/tom`.
+
+**Verify both exist:**
+```bash
+getent group engineers
+id tom
+```
+
+**Expected output:**
+```
+engineers:x:1001:
+uid=1001(tom) gid=1002(tom) groups=1002(tom)
+```
+
+---
+
+### 🧠 Understanding the output
+
+**`getent group engineers` — reads left to right as a colon-separated record:**
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `engineers` | engineers | Group name |
+| `x` | x | Password placeholder — always `x`, ignore it |
+| `1001` | 1001 | Group ID (GID) — the number Linux uses internally |
+| *(empty)* | | Member list — blank means no users added yet |
+
+**`id tom` — three fields:**
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `uid=1001(tom)` | 1001 | Tom's User ID — his personal identity number |
+| `gid=1002(tom)` | 1002 | Tom's primary group — Linux auto-creates a private group named `tom` for every new user |
+| `groups=1002(tom)` | 1002 | Every group Tom belongs to — right now only his own private group |
+
+---
+
+### 🧠 Why does tom have uid=1001 and engineers have GID=1001?
+
+That's a coincidence of creation order — UIDs and GIDs are assigned from the same incrementing counter. They look the same but live in completely separate namespaces:
+
+- `uid=1001` = Tom the **user**
+- `GID=1001` = engineers the **group**
+
+They don't conflict. Linux tracks users and groups in separate databases.
+
+**Tom is NOT a member of engineers** — his `groups=` line only shows `1002(tom)`. If he were in engineers it would show `groups=1002(tom),1001(engineers)`. That's fine — we don't need him in the group. We just need `engineers` as the **group owner** of the directory.
+
+---
+
+### 🧠 User Private Group (UPG)
+
+When you run `useradd tom`, Linux automatically creates:
+- A user named `tom` with `uid=1001`
+- A group named `tom` with `gid=1002` (next available GID)
+
+This is called a **User Private Group (UPG)** — a RHEL convention so files a user creates aren't accidentally shared with others. You can override it at creation time with `useradd -g engineers tom` to assign a different primary group instead.
+
+---
+
+### 🧠 `getent` vs `groupadd` — completely different jobs
+
+| Command | Job | Analogy |
+|---------|-----|---------|
+| `groupadd` | **Creates** a group — writes a new entry to `/etc/group` | INSERT into a database |
+| `getent group` | **Reads** group entries — queries the system's group database | SELECT from a database |
+
+`getent` stands for **"get entries"** — a lookup tool that queries system databases:
+
+- `getent group` → reads `/etc/group`
+- `getent passwd` → reads `/etc/passwd` (user accounts)
+- `getent hosts` → reads hostname/DNS entries
+
+Simple rule: `groupadd` = **write**, `getent` = **read**. After you create something, use `getent` to confirm it worked — same reason you run `cat` after writing a file.
 
 ---
 
@@ -98,10 +183,17 @@ sudo useradd tom
 sudo chown tom:engineers /data/engineers
 ```
 
-> **Format:** `chown owner:group /path`
-> - `tom` becomes the owning user
-> - `engineers` becomes the owning group
-> - Both set in one command
+Sets `tom` as the owning user and `engineers` as the owning group in one command. The colon separates user from group — no spaces around it.
+
+**Verify:**
+```bash
+ls -ld /data/engineers
+```
+
+**Expected output:**
+```
+drwxr-xr-x. 2 tom engineers 6 May 20 11:14 /data/engineers
+```
 
 ---
 
@@ -111,7 +203,7 @@ sudo chown tom:engineers /data/engineers
 sudo chmod 070 /data/engineers
 ```
 
-> **Breaking down `070`:**
+**Breaking down `070`:**
 
 | Position | Who | Value | Permissions |
 |----------|-----|-------|-------------|
@@ -121,20 +213,27 @@ sudo chmod 070 /data/engineers
 
 > `tom` gets `0` (no rwx) but still owns the directory — ownership is separate from permissions. The owner always retains the right to `chmod`, even with `---`.
 
----
-
-## Step 5 — Verify everything
-
+**Verify:**
 ```bash
 ls -ld /data/engineers
 ```
 
 **Expected output:**
 ```
-d---rwx--- 2 tom engineers 6 May 20 11:00 /data/engineers
+d---rwx---. 2 tom engineers 6 May 20 11:14 /data/engineers
 ```
 
-**Reading the output:**
+---
+
+## Step 5 — Full verification
+
+```bash
+ls -ld /data/engineers
+id tom
+getent group engineers
+```
+
+**Reading the final `ls -ld` output:**
 
 | Part | Meaning |
 |------|---------|
@@ -144,12 +243,6 @@ d---rwx--- 2 tom engineers 6 May 20 11:00 /data/engineers
 | `---` | Others have no access |
 | `tom` | Owning user |
 | `engineers` | Owning group |
-
-**Confirm user and group exist:**
-```bash
-id tom
-getent group engineers
-```
 
 ---
 
@@ -162,29 +255,31 @@ getent group engineers
 | `useradd` | Adds a new user to `/etc/passwd` and creates home dir |
 | `chown user:group` | Sets both owner and group in one command |
 | `chmod 070` | Octal notation — owner=0, group=7, others=0 |
+| User Private Group | Every new user gets a private group of the same name by default |
 | Ownership vs permissions | Owner can always `chmod` even if permissions are `---` |
+| `getent` | Read-only lookup tool for system databases |
 | `ls -ld` | `-l` = long format, `-d` = show the directory itself not its contents |
 
 ---
 
 ## ⚠️ Pitfalls
 
-- **Forgetting `-p` on mkdir** → fails if `/data` doesn't exist yet
-- **`chown tom engineers`** (space instead of colon) → sets owner to `tom` on a file called `engineers`, not what you want — always use `tom:engineers`
+- **Forgetting `-p` on `mkdir`** → fails if `/data` doesn't exist yet
+- **`chown tom engineers`** (space instead of colon) → tries to set owner to `tom` on a file called `engineers` — always use `tom:engineers`
 - **`chmod 770` instead of `070`** → gives tom rwx too, violating requirement 1
-- **Confusing ownership and permissions** → tom owning the dir doesn't mean tom has rwx; they are independent settings
-- **Not verifying with `ls -ld`** → always confirm before moving on; a wrong chmod is silent
+- **Confusing ownership and permissions** → tom owning the dir doesn't mean tom has rwx; they are independent
+- **Not verifying with `ls -ld`** → a wrong `chmod` is silent; always confirm
 
 ---
 
 ## ✅ Lab Checklist
 
-- `/data/engineers` directory created ✓
-- Group `engineers` created ✓
-- User `tom` created ✓
-- `chown tom:engineers /data/engineers` ✓
-- `chmod 070 /data/engineers` ✓
-- `ls -ld` shows `d---rwx---` with `tom engineers` ✓
+- `/data/engineers` directory created with `mkdir -p` ✓
+- Group `engineers` created with `groupadd` ✓
+- User `tom` created with `useradd` ✓
+- `chown tom:engineers /data/engineers` sets correct ownership ✓
+- `chmod 070 /data/engineers` sets correct permissions ✓
+- `ls -ld` shows `d---rwx--- tom engineers` ✓
 
 ---
 
